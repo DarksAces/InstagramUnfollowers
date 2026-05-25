@@ -254,7 +254,7 @@ export const Searching = ({
               setState({
                 ...state,
                 currentTab: "non_whitelisted",
-                selectedResults: [],
+                page: 1,
               });
             }}
           >
@@ -270,7 +270,7 @@ export const Searching = ({
               setState({
                 ...state,
                 currentTab: "whitelisted",
-                selectedResults: [],
+                page: 1,
               });
             }}
           >

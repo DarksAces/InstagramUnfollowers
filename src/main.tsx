@@ -245,21 +245,25 @@ function App() {
     if (state.status !== "scanning") {
       return;
     }
+    const displayed = getUsersForDisplay(
+      state.results,
+      state.whitelistedResults,
+      state.currentTab,
+      state.searchTerm,
+      state.filter,
+    );
     if (e.currentTarget.checked) {
+      const currentIds = new Set(state.selectedResults.map(u => u.id));
+      const toAdd = displayed.filter(u => !currentIds.has(u.id));
       setState({
         ...state,
-        selectedResults: getUsersForDisplay(
-          state.results,
-          state.whitelistedResults,
-          state.currentTab,
-          state.searchTerm,
-          state.filter,
-        ),
+        selectedResults: [...state.selectedResults, ...toAdd],
       });
     } else {
+      const displayedIds = new Set(displayed.map(u => u.id));
       setState({
         ...state,
-        selectedResults: [],
+        selectedResults: state.selectedResults.filter(u => !displayedIds.has(u.id)),
       });
     }
   };
@@ -269,24 +273,28 @@ function App() {
     if (state.status !== "scanning") {
       return;
     }
+    const pageUsers = getCurrentPageUnfollowers(
+      getUsersForDisplay(
+        state.results,
+        state.whitelistedResults,
+        state.currentTab,
+        state.searchTerm,
+        state.filter,
+      ),
+      state.page,
+    );
     if (e.currentTarget.checked) {
+      const currentIds = new Set(state.selectedResults.map(u => u.id));
+      const toAdd = pageUsers.filter(u => !currentIds.has(u.id));
       setState({
         ...state,
-        selectedResults: getCurrentPageUnfollowers(
-          getUsersForDisplay(
-            state.results,
-            state.whitelistedResults,
-            state.currentTab,
-            state.searchTerm,
-            state.filter,
-          ),
-          state.page,
-        ),
+        selectedResults: [...state.selectedResults, ...toAdd],
       });
     } else {
+      const pageUserIds = new Set(pageUsers.map(u => u.id));
       setState({
         ...state,
-        selectedResults: [],
+        selectedResults: state.selectedResults.filter(u => !pageUserIds.has(u.id)),
       });
     }
   };

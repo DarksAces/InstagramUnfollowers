@@ -178,14 +178,16 @@ export const Toolbar = ({
                 // Avoid allowing selection while the scan is incomplete and the visible result set is still moving.
                 disabled={state.percentage < 100}
                 checked={
-                  state.selectedResults.length ===
-                  getUsersForDisplay(
-                    state.results,
-                    state.whitelistedResults,
-                    state.currentTab,
-                    state.searchTerm,
-                    state.filter,
-                  ).length
+                  (() => {
+                    const displayed = getUsersForDisplay(
+                      state.results,
+                      state.whitelistedResults,
+                      state.currentTab,
+                      state.searchTerm,
+                      state.filter,
+                    );
+                    return displayed.length > 0 && displayed.every(u => state.selectedResults.some(s => s.id === u.id));
+                  })()
                 }
                 className="toggle-all-checkbox"
                 onChange={toggleAllUsers}
