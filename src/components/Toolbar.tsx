@@ -36,8 +36,8 @@ export const Toolbar = ({
   return (
     <header className="app-header">
       {isActiveProcess && (
-        <div 
-          className="progressbar" 
+        <div
+          className="progressbar"
           style={{ '--progress-width': `${state.status !== 'initial' ? state.percentage : 0}%` } as React.CSSProperties}
         />
       )}
@@ -120,9 +120,14 @@ export const Toolbar = ({
           >
             CSV
           </button>
-          {
-            state.status === "initial" && <button className="icon-button" type="button" title="Settings"><SettingIcon onClickLogo={() => { setSettingMenu(true); }} /></button>
-          }
+          <button
+            className="icon-button"
+            type="button"
+            title="Settings"
+            onClick={() => { setSettingMenu(true); }}
+          >
+            <SettingIcon />
+          </button>
         </div>
         <div className="toolbar-search">
           <input
