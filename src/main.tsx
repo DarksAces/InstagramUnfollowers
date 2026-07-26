@@ -405,6 +405,16 @@ function App() {
         }
         setToast({ show: false });
       }
+      setState(prevState => {
+        if (prevState.status !== 'scanning') {
+          return prevState;
+        }
+        const newState: State = {
+          ...prevState,
+          percentage: 100,
+        };
+        return newState;
+      });
       setToast({ show: true, text: "Scanning completed!" });
     };
     scan();
