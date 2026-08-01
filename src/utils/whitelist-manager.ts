@@ -142,3 +142,5 @@ export const loadTimings = (): Timings | null => {
 export const saveTimings = (timings: Timings): void => {
   localStorage.setItem(TIMINGS_STORAGE_KEY, JSON.stringify(timings));
 };
+
+

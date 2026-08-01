@@ -3,5 +3,6 @@ export interface ScanningFilter {
   readonly showFollowers: boolean;
   readonly showVerified: boolean;
   readonly showPrivate: boolean;
+  readonly showPublic: boolean;
   readonly showWithOutProfilePicture: boolean;
 }

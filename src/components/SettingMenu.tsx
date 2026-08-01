@@ -108,6 +108,8 @@ export const SettingMenu = ({
                 <label className="margin-between-input-and-label">(ms)</label>
               </div>
 
+
+
               <div className="warning-container">
                 <h3 className="warning"><b>WARNING:</b> Modifying these settings can lead to your account being banned.</h3>
                 <h3 className="warning">USE IT AT YOUR OWN RISK!!!!</h3>

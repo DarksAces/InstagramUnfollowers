@@ -129,6 +129,16 @@ export const Searching = ({
             <label className="badge m-small">
               <input
                 type="checkbox"
+                name="showPublic"
+                checked={state.filter.showPublic}
+                onChange={handleScanFilter}
+              />
+              &nbsp;Public
+            </label>
+
+            <label className="badge m-small">
+              <input
+                type="checkbox"
                 name="showWithOutProfilePicture"
                 checked={state.filter.showWithOutProfilePicture}
                 onChange={handleScanFilter}
@@ -163,6 +173,18 @@ export const Searching = ({
             <button
               className="button-secondary"
               onClick={() => {
+                const publicUsers = usersForDisplay.filter(u => !u.is_private);
+                const currentIds = new Set(state.selectedResults.map(u => u.id));
+                const toAdd = publicUsers.filter(u => !currentIds.has(u.id));
+                setState({ ...state, selectedResults: [...state.selectedResults, ...toAdd] });
+              }}
+            >
+              Public
+            </button>
+
+            <button
+              className="button-secondary"
+              onClick={() => {
                 const noPicUsers = usersForDisplay.filter(u => isWithoutProfilePicture(u));
                 const currentIds = new Set(state.selectedResults.map(u => u.id));
                 const toAdd = noPicUsers.filter(u => !currentIds.has(u.id));
@@ -172,7 +194,7 @@ export const Searching = ({
               No Pic
             </button>
             <button
-              className="button-secondary danger-text"
+              className="button-secondary danger-text grid-span-2"
               onClick={() => setState({ ...state, selectedResults: [] })}
             >
               Clear
@@ -210,6 +232,11 @@ export const Searching = ({
                   <span>Private</span>
                   <strong>{state.results.filter(u => u.is_private).length}</strong>
                 </div>
+                <div className="summary-item">
+                  <span>Public</span>
+                  <strong>{state.results.filter(u => !u.is_private).length}</strong>
+                </div>
+
               </div>
             </div>
           )}
@@ -386,6 +413,7 @@ export const Searching = ({
                       <span className="private-indicator">Private</span>
                     </div>
                   )}
+
                 </div>
                 <div className="flex align-center gap-small">
                   <input

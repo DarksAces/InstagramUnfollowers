@@ -83,6 +83,7 @@ function pauseScan() {
 }
 
 
+
 function App() {
   const [state, setState] = useState<State>({
     ...(
@@ -101,6 +102,7 @@ function App() {
             showFollowers: false,
             showVerified: true,
             showPrivate: true,
+            showPublic: true,
             showWithOutProfilePicture: true,
           },
         } as State
@@ -161,6 +163,7 @@ function App() {
           showFollowers: false,
           showVerified: true,
           showPrivate: true,
+          showPublic: true,
           showWithOutProfilePicture: true,
         },
       });
@@ -181,6 +184,7 @@ function App() {
         showFollowers: false,
         showVerified: true,
         showPrivate: true,
+        showPublic: true,
         showWithOutProfilePicture: true,
       },
     });
@@ -301,13 +305,18 @@ function App() {
 
   const onWhitelistUpdate = (updatedWhitelist: readonly UserNode[]) => {
     saveWhitelist(updatedWhitelist);
-    if (state.status === "scanning") {
-      setState({
-        ...state,
+    setState(prevState => {
+      if (prevState.status !== "scanning") {
+        return prevState;
+      }
+      return {
+        ...prevState,
         whitelistedResults: updatedWhitelist,
-      });
-    }
+      };
+    });
   };
+
+
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -363,7 +372,11 @@ function App() {
         hasNext = receivedData.page_info.has_next_page;
         url = urlGenerator(receivedData.page_info.end_cursor);
         currentFollowedUsersCount += receivedData.edges.length;
-        receivedData.edges.forEach(x => results.push(x.node));
+        receivedData.edges.forEach(x => {
+          results.push({
+            ...x.node,
+          });
+        });
 
         setState(prevState => {
           if (prevState.status !== "scanning") {

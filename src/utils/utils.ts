@@ -92,6 +92,9 @@ export function getUsersForDisplay(
     if (!filter.showPrivate && result.is_private) {
       continue;
     }
+    if (!filter.showPublic && !result.is_private) {
+      continue;
+    }
     if (!filter.showVerified && result.is_verified) {
       continue;
     }
@@ -101,6 +104,7 @@ export function getUsersForDisplay(
     if (!filter.showNonFollowers && !result.follows_viewer) {
       continue;
     }
+
     if (!filter.showWithOutProfilePicture && isWithoutProfilePicture(result)) {
       continue;
     }
