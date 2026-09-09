@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const indexPath = process.argv[2];
+const primaryIndexPath = process.argv[2];
 const minifiedCodePath = process.argv[3];
 
 const CODE_BLOCK_START = 'const instagramScript = "';
@@ -10,10 +10,7 @@ const replaceRange = (s, start, end, substitute) => {
   return s.substring(0, start) + substitute + s.substring(end);
 };
 
-const indexData = fs.readFileSync(indexPath, { encoding: 'utf8', flag: 'r' });
 let minifiedCode = fs.readFileSync(minifiedCodePath, { encoding: 'utf8', flag: 'r' });
-const replaceStartIndex = indexData.indexOf(CODE_BLOCK_START) + CODE_BLOCK_START.length;
-const replaceEndIndex = indexData.lastIndexOf(CODE_BLOCK_END);
 
 // Properly escape all special characters
 minifiedCode = minifiedCode
@@ -24,5 +21,14 @@ minifiedCode = minifiedCode
   .replace(/\t/g, '\\t')     // Escape tabs
   .replace(/\f/g, '\\f');    // Escape form feeds
 
-const parsedReadme = replaceRange(indexData, replaceStartIndex, replaceEndIndex, minifiedCode);
-fs.writeFileSync(indexPath, parsedReadme);
+const targetPaths = [primaryIndexPath, 'index.html'].filter(p => p && fs.existsSync(p));
+
+for (const targetPath of targetPaths) {
+  const indexData = fs.readFileSync(targetPath, { encoding: 'utf8', flag: 'r' });
+  const replaceStartIndex = indexData.indexOf(CODE_BLOCK_START) + CODE_BLOCK_START.length;
+  const replaceEndIndex = indexData.lastIndexOf(CODE_BLOCK_END);
+  if (replaceStartIndex !== -1 && replaceEndIndex !== -1) {
+    const parsed = replaceRange(indexData, replaceStartIndex, replaceEndIndex, minifiedCode);
+    fs.writeFileSync(targetPath, parsed);
+  }
+}
