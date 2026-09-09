@@ -156,23 +156,53 @@ export function sleep(ms: number): Promise<any> {
 }
 
 export function getCookie(name: string): string | null {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length !== 2) {
-    return null;
-  }
-  return parts.pop()!.split(';').shift()!;
+  const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function urlGenerator(nextCode?: string): string {
-  const ds_user_id = getCookie('ds_user_id');
-  if (nextCode === undefined) {
-    // First url
-    return `https://www.instagram.com/graphql/query/?query_hash=3dec7e2c57367ef3da3d987d89f9dbc8&variables={"id":"${ds_user_id}","include_reel":"true","fetch_mutual":"false","first":"24"}`;
+export function getUserId(): string | null {
+  const cookieId = getCookie('ds_user_id');
+  if (cookieId) {
+    return cookieId;
   }
-  return `https://www.instagram.com/graphql/query/?query_hash=3dec7e2c57367ef3da3d987d89f9dbc8&variables={"id":"${ds_user_id}","include_reel":"true","fetch_mutual":"false","first":"24","after":"${nextCode}"}`;
+  try {
+    const sharedData = (window as any)._sharedData;
+    if (sharedData?.config?.viewerId) {
+      return String(sharedData.config.viewerId);
+    }
+    if (sharedData?.raw?.viewer?.id) {
+      return String(sharedData.raw.viewer.id);
+    }
+  } catch {
+    // Fallback failure handled by caller
+  }
+  return null;
+}
+
+export function getIgHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    'x-ig-app-id': '936619743392459',
+    'x-requested-with': 'XMLHttpRequest',
+    'x-asbd-id': '129477',
+    'accept': '*/*',
+  };
+  const csrftoken = getCookie('csrftoken');
+  if (csrftoken) {
+    headers['x-csrftoken'] = csrftoken;
+  }
+  return headers;
+}
+
+export function followingUrlGenerator(userId: string, nextMaxId?: string): string {
+  const base = `https://www.instagram.com/api/v1/friendships/${userId}/following/?count=50`;
+  return nextMaxId ? `${base}&max_id=${encodeURIComponent(nextMaxId)}` : base;
+}
+
+export function followersUrlGenerator(userId: string, nextMaxId?: string): string {
+  const base = `https://www.instagram.com/api/v1/friendships/${userId}/followers/?count=50`;
+  return nextMaxId ? `${base}&max_id=${encodeURIComponent(nextMaxId)}` : base;
 }
 
 export function unfollowUserUrlGenerator(idToUnfollow: string): string {
-  return `https://www.instagram.com/web/friendships/${idToUnfollow}/unfollow/`;
+  return `https://www.instagram.com/api/v1/friendships/destroy/${idToUnfollow}/`;
 }

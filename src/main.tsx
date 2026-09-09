@@ -2,7 +2,7 @@ import React, { ChangeEvent, useEffect, useState } from "react";
 import { render } from "react-dom";
 import "./styles.scss";
 
-import { Typename, User, UserNode } from "./model/user";
+import { Typename, UserNode } from "./model/user";
 import { Toast } from "./components/Toast";
 import { UserCheckIcon } from "./components/icons/UserCheckIcon";
 import { UserUncheckIcon } from "./components/icons/UserUncheckIcon";
@@ -12,9 +12,14 @@ import { DEFAULT_TIME_BETWEEN_SEARCH_CYCLES,
   DEFAULT_TIME_TO_WAIT_AFTER_FIVE_UNFOLLOWS, INSTAGRAM_HOSTNAME } from "./constants/constants";
 import {
   assertUnreachable,
-  getCookie,
+  followersUrlGenerator,
+  followingUrlGenerator,
   getCurrentPageUnfollowers,
-  getUsersForDisplay, sleep, unfollowUserUrlGenerator, urlGenerator,
+  getIgHeaders,
+  getUserId,
+  getUsersForDisplay,
+  sleep,
+  unfollowUserUrlGenerator,
 } from "./utils/utils";
 import { NotSearching } from "./components/NotSearching";
 import { State } from "./model/state";
@@ -349,86 +354,197 @@ function App() {
       if (state.status !== "scanning" || isLocalPreview) {
         return;
       }
-      const results = [...state.results];
+
+      const userId = getUserId();
+      if (!userId) {
+        setToast({ show: true, text: "Error: No active Instagram session found. Please make sure you are logged in." });
+        alert("Could not detect Instagram user ID. Please make sure you are logged into Instagram in this browser tab.");
+        setState(prevState => ({ ...prevState, status: "initial" }));
+        return;
+      }
+
+      const headers = getIgHeaders();
+      const followersSet = new Set<string>();
+      let followersCount = 0;
+      let followerMaxId: string | undefined = undefined;
+      let hasNextFollowers = true;
       let scrollCycle = 0;
-      let url = urlGenerator();
-      let hasNext = true;
-      let currentFollowedUsersCount = 0;
-      let totalFollowedUsersCount = -1;
 
-      while (hasNext) {
-        let receivedData: User;
+      setToast({ show: true, text: "Step 1/2: Fetching your followers..." });
+
+      // Step 1: Fetch followers to accurately determine who follows viewer back
+      while (hasNextFollowers) {
+        while (scanningPaused) {
+          await sleep(1000);
+        }
+
+        const url = followersUrlGenerator(userId, followerMaxId);
+        let resData: any;
         try {
-          receivedData = (await fetch(url).then(res => res.json())).data.user.edge_follow;
+          const res = await fetch(url, { headers, credentials: "include" });
+          if (!res.ok) {
+            console.error(`Followers fetch failed with status ${res.status}`);
+            if (res.status === 429) {
+              setToast({ show: true, text: "Rate limited by Instagram. Waiting 30s before retrying..." });
+              await sleep(30000);
+              continue;
+            }
+            break;
+          }
+          resData = await res.json();
         } catch (e) {
-          console.error(e);
-          continue;
+          console.error("Error fetching followers:", e);
+          break;
         }
 
-        if (totalFollowedUsersCount === -1) {
-          totalFollowedUsersCount = receivedData.count;
+        if (!resData || !Array.isArray(resData.users)) {
+          console.warn("Unexpected followers data format:", resData);
+          break;
         }
 
-        hasNext = receivedData.page_info.has_next_page;
-        url = urlGenerator(receivedData.page_info.end_cursor);
-        currentFollowedUsersCount += receivedData.edges.length;
-        receivedData.edges.forEach(x => {
+        for (const user of resData.users) {
+          if (user.pk) followersSet.add(String(user.pk));
+          if (user.id) followersSet.add(String(user.id));
+          if (user.pk_id) followersSet.add(String(user.pk_id));
+          if (user.username) followersSet.add(String(user.username).toLowerCase());
+          followersCount++;
+        }
+
+        setToast({ show: true, text: `Step 1/2: ${followersCount} followers scanned...` });
+
+        if (resData.next_max_id) {
+          followerMaxId = String(resData.next_max_id);
+          hasNextFollowers = true;
+        } else {
+          hasNextFollowers = false;
+        }
+
+        const microPause = Math.floor(Math.random() * 800) + 400;
+        await sleep(microPause);
+
+        scrollCycle++;
+        if (scrollCycle > 6) {
+          scrollCycle = 0;
+          await sleep(timings.timeToWaitAfterFiveSearchCycles);
+        }
+      }
+
+      // Step 2: Fetch followed accounts (following) and construct results list
+      setToast({ show: true, text: "Step 2/2: Fetching accounts you follow..." });
+      const results: UserNode[] = [];
+      let followingMaxId: string | undefined = undefined;
+      let hasNextFollowing = true;
+      let followingCount = 0;
+      scrollCycle = 0;
+
+      while (hasNextFollowing) {
+        while (scanningPaused) {
+          await sleep(1000);
+        }
+
+        const url = followingUrlGenerator(userId, followingMaxId);
+        let resData: any;
+        try {
+          const res = await fetch(url, { headers, credentials: "include" });
+          if (!res.ok) {
+            console.error(`Following fetch failed with status ${res.status}`);
+            if (res.status === 429) {
+              setToast({ show: true, text: "Rate limited by Instagram. Waiting 30s before retrying..." });
+              await sleep(30000);
+              continue;
+            }
+            break;
+          }
+          resData = await res.json();
+        } catch (e) {
+          console.error("Error fetching following:", e);
+          break;
+        }
+
+        if (!resData || !Array.isArray(resData.users)) {
+          console.warn("Unexpected following data format:", resData);
+          break;
+        }
+
+        for (const u of resData.users) {
+          const id = String(u.pk || u.id || u.pk_id || "");
+          const username = u.username || "";
+          const followsViewer =
+            followersSet.has(id) ||
+            followersSet.has(username.toLowerCase()) ||
+            (u.friendship_status && Boolean(u.friendship_status.followed_by));
+
           results.push({
-            ...x.node,
+            id,
+            username,
+            full_name: u.full_name || "",
+            profile_pic_url: u.profile_pic_url || "",
+            is_private: Boolean(u.is_private),
+            is_verified: Boolean(u.is_verified),
+            followed_by_viewer: true,
+            follows_viewer: followsViewer,
+            requested_by_viewer: false,
+            reel: {
+              id: "",
+              expiring_at: 0,
+              has_pride_media: false,
+              latest_reel_media: 0,
+              seen: null,
+              owner: {
+                __typename: Typename.GraphUser,
+                id,
+                profile_pic_url: u.profile_pic_url || "",
+                username,
+              },
+            },
           });
-        });
+          followingCount++;
+        }
 
         setState(prevState => {
           if (prevState.status !== "scanning") {
             return prevState;
           }
-          const newState: State = {
+          return {
             ...prevState,
-            // Fix: Changed from Math.floor to Math.round to ensure progress reaches 100%
-            // Math.floor would leave progress at 99% when near completion
-            percentage: Math.round((currentFollowedUsersCount / totalFollowedUsersCount) * 100),
-            results,
+            results: [...results],
           };
-          return newState;
         });
 
-        // Pause scanning if user requested so.
-        while (scanningPaused) {
-          await sleep(1000);
-          console.info("Scan paused");
+        if (resData.next_max_id) {
+          followingMaxId = String(resData.next_max_id);
+          hasNextFollowing = true;
+        } else {
+          hasNextFollowing = false;
         }
 
-        // Human-like behavior: Micro-pause between fetching chunks
-        const microPause = Math.floor(Math.random() * 1500) + 500; // 500ms - 2000ms
+        const microPause = Math.floor(Math.random() * 1000) + 500;
         await sleep(microPause);
 
-        // Standard delay between cycles
-        await sleep(Math.floor(Math.random() * (timings.timeBetweenSearchCycles - timings.timeBetweenSearchCycles * 0.7)) + timings.timeBetweenSearchCycles);
-        
         scrollCycle++;
         if (scrollCycle > 6) {
           scrollCycle = 0;
-          // Variable long sleep to avoid patterns
           const longSleepVar = Math.max(
             0,
-            timings.timeToWaitAfterFiveSearchCycles + (Math.random() * 10000 - 5000), // +/- 5 seconds
+            timings.timeToWaitAfterFiveSearchCycles + (Math.random() * 6000 - 3000),
           );
-          setToast({ show: true, text: `Sleeping ${Math.round(longSleepVar / 1000)} seconds to prevent getting temp blocked` });
+          setToast({ show: true, text: `Sleeping ${Math.round(longSleepVar / 1000)}s to prevent getting temp blocked` });
           await sleep(longSleepVar);
         }
         setToast({ show: false });
       }
+
       setState(prevState => {
-        if (prevState.status !== 'scanning') {
+        if (prevState.status !== "scanning") {
           return prevState;
         }
-        const newState: State = {
+        return {
           ...prevState,
           percentage: 100,
+          results,
         };
-        return newState;
       });
-      setToast({ show: true, text: "Scanning completed!" });
+      setToast({ show: true, text: `Scanning completed! Found ${results.length} accounts.` });
     };
     scan();
     // Dependency array not entirely legit, but works this way. TODO: Find a way to fix.
@@ -441,22 +557,16 @@ function App() {
         return;
       }
 
-      const csrftoken = getCookie("csrftoken");
-      if (csrftoken === null) {
-        throw new Error("csrftoken cookie is null");
-      }
-
+      const headers = getIgHeaders();
       let counter = 0;
       for (const user of state.selectedResults) {
         counter += 1;
-        // Fix: Changed from Math.floor to Math.round to ensure progress reaches 100%
-        // Math.floor would leave progress at 99% when near completion
         const percentage = Math.round((counter / state.selectedResults.length) * 100);
         try {
           await fetch(unfollowUserUrlGenerator(user.id), {
             headers: {
+              ...headers,
               "content-type": "application/x-www-form-urlencoded",
-              "x-csrftoken": csrftoken,
             },
             method: "POST",
             mode: "cors",
